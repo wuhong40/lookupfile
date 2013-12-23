@@ -15,8 +15,27 @@ let g:lookupfile#lastPattern = ""
 let g:lookupfile#lastResults = []
 let g:lookupfile#lastStatsMsg = []
 let g:lookupfile#recentFiles = []
+let g:lookupfile#excmd = ""
+let g:lookupfile#filename=""
+let g:lookupfile#is_use_excmd=0
+let g:lookupfile#tmp_dir=$HOME."/.cache/vim/lookupfile/"
+let g:lookupfile#curr_buf_tags=g:lookupfile#tmp_dir."curr_buf_tags"
+let g:lookupfile#curr_buf_str_tags=g:lookupfile#tmp_dir."curr_buf_str_tags"
+let g:lookupfile#curr_buf_str_tmp=g:lookupfile#tmp_dir."curr_buf_str_tmp"
+let g:lookupfile#ctag_cmd = "ctags --c++-kinds=+p --fields=+iaS --extra=+q -f " . g:lookupfile#curr_buf_tags
+let g:lookupfile#curr_buf_path = ""
 
 function! lookupfile#OpenWindow(bang, initPat)
+  " 生成临时文件
+  if !isdirectory(g:lookupfile#tmp_dir)
+    call mkdir(g:lookupfile#tmp_dir, "p", 0700)
+  endif
+  call delete(g:lookupfile#curr_buf_tags)
+
+  let g:lookupfile#curr_buf_path=fnamemodify(bufname('%'), ":p")
+  let ctag_cmd_all = g:lookupfile#ctag_cmd." ". g:lookupfile#curr_buf_path
+  call system(ctag_cmd_all)
+
   let origWinnr = winnr()
   let _isf = &isfname
   let _splitbelow = &splitbelow
@@ -267,6 +286,22 @@ endfunction
 
 function! s:OpenCurFile(splitWin)
   let fileName = getline('.')
+  let excmd = ""
+
+  if g:lookupfile#is_use_excmd
+    let str_line = fileName
+    let excmd_start=match(str_line, "(EX)")
+    let excmd_end = match(str_line, "(FILE)")
+
+    let excmd = strpart(str_line, excmd_start + 4, excmd_end - excmd_start - 4)
+    let excmd = substitute(excmd, '/^', '/^\\C', 'g')
+    let excmd = substitute(excmd,  '\*',  '\\\*', 'g')
+    let excmd = substitute(excmd,  '\[',  '\\\[', 'g')
+    let excmd = substitute(excmd,  '\]',  '\\\]', 'g')
+    let excmd = substitute(excmd,  '"',  '\\\"', 'g')
+    let fileName = strpart(str_line, excmd_end + 6)
+  endif
+
   if fileName =~ '^\s*$'
     return
   endif
@@ -326,6 +361,10 @@ function! s:OpenCurFile(splitWin)
         " Ignore, this anyway means the file was found.
       endtry
     endtry
+  endif
+
+  if excmd != ""
+    execute excmd
   endif
 endfunction
 
